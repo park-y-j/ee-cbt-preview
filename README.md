@@ -1,2 +1,3 @@
-# ee-cbt-preview
-전기기사 필기 CBT 미리보기
+# 전기기사 필기 CBT
+
+Open index.html
