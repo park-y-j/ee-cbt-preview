@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>전기기사 필기 CBT</title>
+<style>
+:root{--bg:#0b1220;--card:#121b2e;--line:#2a3a58;--text:#e8eef8;--muted:#8fa0bb;--accent:#f5c542;--btn:#1e3a8a;--good:#3dd68c;--bad:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:sans-serif}
+.wrap{max-width:720px;margin:auto;padding:16px 16px 80px}h1{font-size:22px}.sub{color:var(--muted);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:8px 0;width:100%;color:var(--text);text-align:left}
+.btn{display:block;width:100%;background:var(--btn);color:#fff;border:0;border-radius:12px;padding:12px;font-weight:700;margin:8px 0}
+.btn.gold{background:var(--accent);color:#1a1403}
+.choice{display:block;width:100%;text-align:left;margin:8px 0;background:#0e1628;border:1px solid var(--line);color:var(--text);border-radius:12px;padding:14px}
+.choice.sel{border-color:var(--accent)}
+.choice.ok{border-color:var(--good)}.choice.ng{border-color:var(--bad)}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#0b1220;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr)}
+.nav button{background:0;border:0;color:var(--muted);padding:12px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<nav class="nav">
+<button onclick="go('home')">홈</button>
+<button onclick="go('bank')">기출</button>
+<button onclick="startCBT()">CBT</button>
+<button onclick="go('wrong')">오답</button>
+</nav>
+<script src="questions.js"></script>
+<script>
+const KEY='ee_cbt_v1';
+let S=JSON.parse(localStorage.getItem(KEY)||'{"a":[]}');
+const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+const Qs=()=> (window.APP_DATA&&window.APP_DATA.questions)||[];
+const sub=id=>({em:'전기자기학',pe:'전력공학',emc:'전기기기',cc:'회로이론',code:'설비기준'}[id]||id);
+let view='home', exam=null;
+function go(v){view=v;render()}
+function render(){
+ const el=document.getElementById('app');
+ if(!Qs().length){el.innerHTML='<h1>문제 데이터 로드 실패</h1><p class=sub>questions.js 가 필요합니다.</p>';return;}
+ if(view==='exam') return renderExam(el);
+ if(view==='bank'){
+  el.innerHTML='<h1>기출문제</h1>'+Qs().map(q=>`<button class=card onclick="practice('${q.question_id}')"><small>${q.year}-${q.round} · ${sub(q.subject_id)}</small><div>${q.stem}</div></button>`).join('');
+  return;
+ }
+ if(view==='wrong'){
+  const ids=[...new Set(S.a.filter(x=>!x.ok).map(x=>x.id))];
+  const qs=Qs().filter(q=>ids.includes(q.question_id));
+  el.innerHTML='<h1>오답노트</h1>'+(qs.length?`<button class="btn gold" onclick="startList(qsWrong())">다시 풀기</button>`:'<p class=sub>오답이 없습니다.</p>')+qs.map(q=>`<div class=card>${q.stem}</div>`).join('');
+  return;
+ }
+ const n=S.a.length, ok=S.a.filter(x=>x.ok).length, rate=n?Math.round(ok/n*100):0;
+ el.innerHTML=`<h1>⚡ 전기기사 필기</h1><p class=sub>오늘도 10문제만 풀어보세요. 자체 제작 학습 문제.</p>
+ <button class="btn gold" onclick="startToday()">오늘의 10문제</button>
+ <button class=btn onclick="startCBT()">실전 CBT</button>
+ <button class=btn onclick="go('bank')">기출문제</button>
+ <div class=card>정답률 <b>${rate}%</b> · 풀이 <b>${n}</b></div>`;
+}
+function qsWrong(){const ids=[...new Set(S.a.filter(x=>!x.ok).map(x=>x.id))];return Qs().filter(q=>ids.includes(q.question_id));}
+function startToday(){startList(Qs().slice(0,10),true)}
+function startCBT(){startList(Qs().slice().sort(()=>Math.random()-0.5).slice(0,Math.min(20,Qs().length)),false)}
+function practice(id){startList(Qs().filter(q=>q.question_id===id),true)}
+function startList(qs,practice){if(!qs.length)return alert('문제 없음');exam={qs,i:0,ans:Array(qs.length).fill(null),practice,show:false};view='exam';render();}
+function renderExam(el){
+ const e=exam,q=e.qs[e.i],n=e.ans[e.i];
+ el.innerHTML=`<p class=sub>${e.i+1}/${e.qs.length} · ${sub(q.subject_id)} · ${q.year}년 ${q.round}회</p>
+ <div style="font-size:17px;margin:12px 0">${q.stem}</div>
+ ${q.choices.map((c,i)=>{const k=i+1;let cls='choice'+(n===k?' sel':''); if(e.show&&k===q.answer)cls+=' ok'; if(e.show&&n===k&&k!==q.answer)cls+=' ng'; return `<button class="${cls}" onclick="pick(${k})">${['①','②','③','④'][i]} ${c}</button>`;}).join('')}
+ ${e.show?`<div class=card>${n===q.answer?'⭕ 정답':'❌ 오답'} · 정답 ${['①','②','③','④'][q.answer-1]}<p>${q.explanation}</p></div>`:''}
+ <button class=btn onclick="prev()">이전</button>
+ <button class="btn gold" onclick="next()">${e.show||!e.practice?'다음/제출':'채점'}</button>`;
+}
+function pick(k){exam.ans[exam.i]=k;render()}
+function prev(){exam.i=Math.max(0,exam.i-1);exam.show=false;render()}
+function next(){
+ const e=exam,q=e.qs[e.i];
+ if(e.practice && !e.show){ if(!e.ans[e.i])return alert('선택');
+  e.show=true; S.a.push({id:q.question_id,ok:e.ans[e.i]===q.answer}); save(); render(); return;}
+ if(e.i<e.qs.length-1){e.i++; e.show=false; render(); return;}
+ const ok=e.qs.filter((q,i)=>e.ans[i]===q.answer).length;
+ alert('결과 '+ok+' / '+e.qs.length); go('home');
+}
+render();
+</script>
+</body></html>
